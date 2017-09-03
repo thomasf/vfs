@@ -299,7 +299,6 @@ func (ns NameSpace) ReadDir(path string) ([]os.FileInfo, error) {
 	path = ns.clean(path)
 
 	var (
-		haveGo   = false
 		haveName = map[string]bool{}
 		all      []os.FileInfo
 		err      error
@@ -323,35 +322,10 @@ func (ns NameSpace) ReadDir(path string) ([]os.FileInfo, error) {
 			first = dir
 		}
 
-		// If we don't yet have Go files in 'all' and this directory
-		// has some, add all the files from this directory.
-		// Otherwise, only add subdirectories.
-		useFiles := false
-		if !haveGo {
-			for _, d := range dir {
-				if strings.HasSuffix(d.Name(), ".go") {
-					useFiles = true
-					haveGo = true
-					break
-				}
-			}
-		}
-
 		for _, d := range dir {
 			name := d.Name()
-			if (d.IsDir() || useFiles) && !haveName[name] {
+			if !haveName[name] {
 				haveName[name] = true
-				all = append(all, d)
-			}
-		}
-	}
-
-	// We didn't find any directories containing Go files.
-	// If some directory returned successfully, use that.
-	if !haveGo {
-		for _, d := range first {
-			if !haveName[d.Name()] {
-				haveName[d.Name()] = true
 				all = append(all, d)
 			}
 		}
