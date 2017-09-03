@@ -254,6 +254,19 @@ func (ns NameSpace) stat(path string, f func(FileSystem, string) (os.FileInfo, e
 			err = err1
 		}
 	}
+	if os.IsNotExist(err) {
+		for old := range ns {
+			if hasPathPrefix(old, path) && old != path {
+				// Find next element after path in old.
+				elem := old[len(path):]
+				elem = strings.TrimPrefix(elem, "/")
+				if i := strings.Index(elem, "/"); i >= 0 {
+					elem = elem[:i]
+				}
+				return dirInfo(elem), nil
+			}
+		}
+	}
 	if err == nil {
 		err = &os.PathError{Op: "stat", Path: path, Err: os.ErrNotExist}
 	}
