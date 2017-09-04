@@ -12,12 +12,62 @@ import (
 
 const verbose = false
 
-func TestFeature(t *testing.T) {
-	// generateTestFixture()
-	testPath := func(path string) string {
-		return filepath.Join("test-fixtures", path)
-	}
+func TestIncludeExclude(t *testing.T) {
+	t.Skip() // TODO: include/exclude has bugs
+	ns := NameSpace{}
+	ns.Bind("/", NewNameSpace(), "/", BindReplace)
+	ns.Bind("/1", Include(OS(testPath("A")), "/animals/cats/cats"), "/", BindAfter)
+	// ns.Bind("/", OS(testPath("B")), "/", BindAfter)
+	// ns.Bind("/", OS(testPath("C")), "/", BindAfter)
+	expected := "NOT THIS"
+	assertWalk(t, ns, expected)
+	assertIsDir(t, ns,
+		"/",
+	)
+	assertIsRegular(t, ns)
+	assertIsNotExist(t, ns,
+		"/1/2/3/4/5/7",
+	)
+}
 
+func TestIntermediateEmtpyDirs(t *testing.T) {
+	ns := NameSpace{}
+	ns.Bind("/", NewNameSpace(), "/", BindReplace)
+	ns.Bind("/1/2/3/4/5/6", OneFile(testPath("C/animals/cats/cats"), "fake-dog1"), "/", BindBefore)
+	ns.Bind("/1/2/3/4/5/6", OneFile(testPath("C/animals/cats/cats"), "fake-dog2"), "/", BindBefore)
+	ns.Bind("/1/2/3/A/4/5/6", OneFile(testPath("C/animals/cats/cats"), "fake-dog3"), "/", BindBefore)
+	ns.Bind("/1/2/3/A/4/5/6", OneFile(testPath("C/animals/cats/cats"), "fake-dog4"), "/", BindBefore)
+	ns.Bind("/1/2/3/B/4/5/6", OneFile(testPath("C/animals/cats/cats"), "fake-dog5"), "/", BindBefore)
+	ns.Bind("/1", OS(testPath("C")), "/", BindAfter)
+	assertIsDir(t, ns,
+		"/1/2",
+		"/1/2/3",
+		"/1/2/3/4",
+		"/1/2/3/A",
+		"/1/2/3/A/4",
+		"/1/2/3/B/4",
+		"/1/2/3/4/5/6",
+		"/1/animals/",
+		"/1/animals/cats",
+	)
+	assertIsRegular(t, ns,
+		"/1/2/3/4/5/6/fake-dog1",
+		"/1/2/3/4/5/6/fake-dog2",
+		"/1/2/3/A/4/5/6/fake-dog3",
+		"/1/2/3/A/4/5/6/fake-dog4",
+		"/1/2/3/B/4/5/6/fake-dog5",
+		"/1/animals/cats/cats",
+	)
+	assertIsNotExist(t, ns,
+		"/1/2/3/4/5/7",
+		"/2",
+		"/1/3",
+		"/1/animals/cats/dogs",
+	)
+}
+
+func TestComplicated(t *testing.T) {
+	// generateTestFixture()
 	ns := NameSpace{}
 	// ns.Bind("/", OS(testPath(".")), "/", BindReplace)
 	// ns.Bind("/", OS("."), "/", BindReplace)
@@ -34,69 +84,19 @@ func TestFeature(t *testing.T) {
 	ns.Bind("/all", OS(testPath("B")), "/", BindBefore)
 	ns.Bind("/all", OS(testPath("C")), "/", BindAfter)
 
-	var results []string
-	addRes := func(kind, data string) {
-		s := fmt.Sprintf("%-4s: %s", kind, data)
-		results = append(results, s)
+	assertIsDir(t, ns,
+		"/dogs/subdogs/",
+	)
 
-		if verbose {
-			switch kind {
-			case "dir", "file":
-				fmt.Print("\n")
-			}
-			fmt.Printf("%-6s: %-30s", kind, data)
-		}
-
-	}
-	err := Walk("/", ns, func(p string, info os.FileInfo, err error) error {
-		if err != nil {
-			t.Fatalf("ERROR: %s : %v !!!", p, err)
-			return nil
-		}
-		if info.IsDir() {
-			addRes("dir", p)
-			return nil
-		}
-		addRes("file", p)
-		f, err := ns.Open(p)
-		if err != nil {
-			t.Fatal(err)
-		}
-		data, err := ioutil.ReadAll(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		addRes("data", string(data))
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, fn := range []string{"/dogs/subdogs/B-dogs"} {
-		fi, err := ns.Stat(fn)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !fi.Mode().IsRegular() {
-			t.Fatal(fi.Mode().String())
-		}
-	}
-
-	for _, fn := range []string{
+	assertIsRegular(t, ns,
+		"/dogs/subdogs/B-dogs",
+	)
+	assertIsNotExist(t, ns,
 		"/dogs/subdogs/B-dogs/nodog",
 		"/dogs/subdogsnodog",
-	} {
-		fi, err := ns.Stat(fn)
-		if err == nil {
-			t.Fatal(fi.Mode().String())
-		}
-		if !os.IsNotExist(err) {
-			t.Fatal(err)
-		}
-	}
-	// fmt.Println(strings.Join(results, "\n"))
-	if strings.Join(results, "\n") != `dir : /
+	)
+
+	expected := `dir : /
 dir : /all
 dir : /all/animals
 dir : /all/animals/cats
@@ -158,9 +158,9 @@ data: A/animals/dogs/dogs
 dir : /new
 dir : /new/dogs
 file: /new/dogs/fake-dog
-data: C/animals/cats/cats` {
-		t.Fatal("not equal")
-	}
+data: C/animals/cats/cats`
+
+	assertWalk(t, ns, expected)
 
 }
 
@@ -192,7 +192,97 @@ func generateTestFixture() {
 			}
 			log.Println(fn)
 		}
+	}
+}
 
+func testPath(path string) string {
+	return filepath.Join("test-fixtures", path)
+}
+
+func assertIsRegular(t *testing.T, ns NameSpace, paths ...string) {
+	for _, fn := range paths {
+		fi, err := ns.Stat(fn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !fi.Mode().IsRegular() {
+			t.Fatal(fi.Mode().String())
+		}
+	}
+}
+
+func assertIsDir(t *testing.T, ns NameSpace, paths ...string) {
+	for _, fn := range paths {
+		fi, err := ns.Stat(fn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !fi.Mode().IsDir() {
+			t.Fatal(fi.Mode().String())
+		}
+		if _, err := ns.ReadDir(fn); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func assertIsNotExist(t *testing.T, ns NameSpace, paths ...string) {
+	for _, fn := range paths {
+		fi, err := ns.Stat(fn)
+		if err == nil {
+			t.Fatal(fi.Mode().String())
+		}
+		if !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+
+}
+
+func assertWalk(t *testing.T, ns NameSpace, expected string) {
+	var results []string
+	addRes := func(kind, data string) {
+		s := fmt.Sprintf("%-4s: %s", kind, data)
+		results = append(results, s)
+
+		if verbose {
+			switch kind {
+			case "dir", "file":
+				fmt.Print("\n")
+			}
+			fmt.Printf("%-6s: %-30s", kind, data)
+		}
+
+	}
+	err := Walk("/", ns, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			t.Fatalf("ERROR: %s : %v !!!", p, err)
+			return nil
+		}
+		if info.IsDir() {
+			addRes("dir", p)
+			return nil
+		}
+		addRes("file", p)
+		f, err := ns.Open(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := ioutil.ReadAll(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		addRes("data", string(data))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := strings.Join(results, "\n")
+	if s != expected {
+		fmt.Printf("\n===========\n\nEXPECTED:\n\n%s\n\nGOT:\n\n%s\n", expected, s)
+		t.Fatal("not equal")
 	}
 
 }
