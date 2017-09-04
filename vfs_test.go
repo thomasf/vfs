@@ -7,8 +7,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestFileMapFS(t *testing.T) {
@@ -114,7 +116,6 @@ data: B/things/wood/table/table
 dir : /2/wood/tree
 file: /2/wood/tree/tree
 data: B/things/wood/tree/tree`)
-
 }
 
 func TestIntermediateEmtpyDirs(t *testing.T) {
@@ -224,7 +225,7 @@ func TestComplicated(t *testing.T) {
 		"/dogs/subdogsnodog",
 	)
 
-	expected := `dir : /
+	assertWalk(t, ns, `dir : /
 dir : /all
 dir : /all/animals
 dir : /all/animals/cats
@@ -286,10 +287,150 @@ data: A/animals/dogs/dogs
 dir : /new
 dir : /new/dogs
 file: /new/dogs/fake-dog
-data: C/animals/cats/cats`
+data: C/animals/cats/cats`)
+}
 
-	assertWalk(t, ns, expected)
+func TestNewNameSpace(t *testing.T) {
+	// We will mount this filesystem under /fs1
+	mount := Map(map[string]string{"fs1file": "abcdefgh"})
 
+	// Existing process. This should give error on Stat("/")
+	t1 := NameSpace{}
+	t1.Bind("/fs1", mount, "/", BindReplace)
+
+	// using NewNameSpace. This should work fine.
+	t2 := NewNameSpace()
+	t2.Bind("/fs1", mount, "/", BindReplace)
+
+	testcases := map[string][]bool{
+		"/":            {false, true},
+		"/fs1":         {true, true},
+		"/fs1/fs1file": {true, true},
+	}
+
+	fss := []FileSystem{t1, t2}
+
+	for j, fs := range fss {
+		for k, v := range testcases {
+			_, err := fs.Stat(k)
+			result := err == nil
+			if result != v[j] {
+				t.Errorf("fs: %d, testcase: %s, want: %v, got: %v, err: %s", j, k, v[j], result, err)
+			}
+		}
+	}
+
+	fi, err := t2.Stat("/")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if fi.Name() != "/" {
+		t.Errorf("t2.Name() : want:%s got:%s", "/", fi.Name())
+	}
+
+	if !fi.ModTime().IsZero() {
+		t.Errorf("t2.Modime() : want:%v got:%v", time.Time{}, fi.ModTime())
+	}
+}
+
+func TestMapFSOpenRoot(t *testing.T) {
+	fs := Map(map[string]string{
+		"foo/bar/three.txt": "a",
+		"foo/bar.txt":       "b",
+		"top.txt":           "c",
+		"other-top.txt":     "d",
+	})
+	tests := []struct {
+		path string
+		want string
+	}{
+		{"/foo/bar/three.txt", "a"},
+		{"foo/bar/three.txt", "a"},
+		{"foo/bar.txt", "b"},
+		{"top.txt", "c"},
+		{"/top.txt", "c"},
+		{"other-top.txt", "d"},
+		{"/other-top.txt", "d"},
+	}
+	for _, tt := range tests {
+		rsc, err := fs.Open(tt.path)
+		if err != nil {
+			t.Errorf("Open(%q) = %v", tt.path, err)
+			continue
+		}
+		slurp, err := ioutil.ReadAll(rsc)
+		if err != nil {
+			t.Error(err)
+		}
+		if string(slurp) != tt.want {
+			t.Errorf("Read(%q) = %q; want %q", tt.path, tt.want, slurp)
+		}
+		rsc.Close()
+	}
+
+	_, err := fs.Open("/xxxx")
+	if !os.IsNotExist(err) {
+		t.Errorf("ReadDir /xxxx = %v; want os.IsNotExist error", err)
+	}
+}
+
+func TestMapFSReaddir(t *testing.T) {
+	fs := Map(map[string]string{
+		"foo/bar/three.txt": "333",
+		"foo/bar.txt":       "22",
+		"top.txt":           "top.txt file",
+		"other-top.txt":     "other-top.txt file",
+	})
+	tests := []struct {
+		dir  string
+		want []os.FileInfo
+	}{
+		{
+			dir: "/",
+			want: []os.FileInfo{
+				mapFI{name: "foo", dir: true},
+				mapFI{name: "other-top.txt", size: len("other-top.txt file")},
+				mapFI{name: "top.txt", size: len("top.txt file")},
+			},
+		},
+		{
+			dir: "/foo",
+			want: []os.FileInfo{
+				mapFI{name: "bar", dir: true},
+				mapFI{name: "bar.txt", size: 2},
+			},
+		},
+		{
+			dir: "/foo/",
+			want: []os.FileInfo{
+				mapFI{name: "bar", dir: true},
+				mapFI{name: "bar.txt", size: 2},
+			},
+		},
+		{
+			dir: "/foo/bar",
+			want: []os.FileInfo{
+				mapFI{name: "three.txt", size: 3},
+			},
+		},
+	}
+	for _, tt := range tests {
+		fis, err := fs.ReadDir(tt.dir)
+		if err != nil {
+			t.Errorf("ReadDir(%q) = %v", tt.dir, err)
+			continue
+		}
+		if !reflect.DeepEqual(fis, tt.want) {
+			t.Errorf("ReadDir(%q) = %#v; want %#v", tt.dir, fis, tt.want)
+			continue
+		}
+	}
+
+	_, err := fs.ReadDir("/xxxx")
+	if !os.IsNotExist(err) {
+		t.Errorf("ReadDir /xxxx = %v; want os.IsNotExist error", err)
+	}
 }
 
 // if they need to be regenerated
