@@ -1,6 +1,7 @@
 package vfs
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -10,24 +11,75 @@ import (
 	"testing"
 )
 
-const verbose = false
-
-func TestIncludeExclude(t *testing.T) {
-	t.Skip() // TODO: include/exclude has bugs
+func TestExcludeDir(t *testing.T) {
 	ns := NameSpace{}
 	ns.Bind("/", NewNameSpace(), "/", BindReplace)
-	ns.Bind("/1", Include(OS(testPath("A")), "/animals/cats/cats"), "/", BindAfter)
-	// ns.Bind("/", OS(testPath("B")), "/", BindAfter)
-	// ns.Bind("/", OS(testPath("C")), "/", BindAfter)
-	expected := "NOT THIS"
-	assertWalk(t, ns, expected)
+	ns.Bind("/1", OS(testPath("B")), "/things", BindAfter)
+	ns.Bind("/2", Exclude(OS(testPath("B")), "/things/wood/table"), "/things", BindAfter)
+	assertWalk(t, ns, `dir : /
+dir : /1
+dir : /1/wood
+dir : /1/wood/table
+file: /1/wood/table/B-table
+data: B/things/wood/table/B-table
+file: /1/wood/table/table
+data: B/things/wood/table/table
+dir : /1/wood/tree
+file: /1/wood/tree/B-tree
+data: B/things/wood/tree/B-tree
+file: /1/wood/tree/tree
+data: B/things/wood/tree/tree
+dir : /2
+dir : /2/wood
+dir : /2/wood/tree
+file: /2/wood/tree/B-tree
+data: B/things/wood/tree/B-tree
+file: /2/wood/tree/tree
+data: B/things/wood/tree/tree`)
+
 	assertIsDir(t, ns,
-		"/",
+		"/1/wood/table/",
+		"/2/wood/",
+		"/2/wood/tree/",
 	)
-	assertIsRegular(t, ns)
+
 	assertIsNotExist(t, ns,
-		"/1/2/3/4/5/7",
+		"/2/wood/table/",
 	)
+
+}
+
+func TestExcludeFiles(t *testing.T) {
+	ns := NameSpace{}
+	ns.Bind("/", NewNameSpace(), "/", BindReplace)
+	ns.Bind("/1", OS(testPath("B")), "/things", BindAfter)
+	ns.Bind("/2", Exclude(OS(testPath("B")),
+		"/things/wood/tree/B-tree",
+		"/things/wood/table/NOTAFILE",
+		"/things/wood/table/B-table",
+	), "/things", BindAfter)
+	assertWalk(t, ns, `dir : /
+dir : /1
+dir : /1/wood
+dir : /1/wood/table
+file: /1/wood/table/B-table
+data: B/things/wood/table/B-table
+file: /1/wood/table/table
+data: B/things/wood/table/table
+dir : /1/wood/tree
+file: /1/wood/tree/B-tree
+data: B/things/wood/tree/B-tree
+file: /1/wood/tree/tree
+data: B/things/wood/tree/tree
+dir : /2
+dir : /2/wood
+dir : /2/wood/table
+file: /2/wood/table/table
+data: B/things/wood/table/table
+dir : /2/wood/tree
+file: /2/wood/tree/tree
+data: B/things/wood/tree/tree`)
+
 }
 
 func TestIntermediateEmtpyDirs(t *testing.T) {
@@ -64,6 +116,44 @@ func TestIntermediateEmtpyDirs(t *testing.T) {
 		"/1/3",
 		"/1/animals/cats/dogs",
 	)
+}
+
+func TestFprint(t *testing.T) {
+	var buf bytes.Buffer
+	ns := NameSpace{}
+	ns.Bind("/", NewNameSpace(), "/", BindReplace)
+	ns.Bind("/excl", Exclude(OS(testPath("B")), "/things/wood/table"), "/things", BindAfter)
+	ns.Bind("/dogs", OS(testPath("A/animals/dogs")), "/", BindAfter)
+	ns.Bind("/dogs", OS(testPath("B/animals/dogs")), "/", BindBefore)
+	ns.Bind("/new/dogs", OneFile(testPath("C/animals/cats/cats"), "fake-dog"), "/", BindBefore)
+
+	ns.Fprint(&buf)
+	s := buf.String()
+	expected := `name space {
+	/:
+		ns /
+	/dogs:
+		os(test-fixtures/B/animals/dogs) /
+		ns /dogs
+		os(test-fixtures/A/animals/dogs) /
+	/excl:
+		ns /excl
+		exclude(os(test-fixtures/B)) /things
+	/new/dogs:
+		onefile(test-fixtures/C/animals/cats/cats:fake-dog) /
+		ns /new/dogs
+}
+`
+	if s != expected {
+		fmt.Println(s)
+
+		t.Log("GOT")
+		t.Log(s)
+		t.Log("EXPECTED")
+		t.Log(expected)
+		t.Fatal()
+	}
+
 }
 
 func TestComplicated(t *testing.T) {
@@ -208,6 +298,12 @@ func assertIsRegular(t *testing.T, ns NameSpace, paths ...string) {
 		if !fi.Mode().IsRegular() {
 			t.Fatal(fi.Mode().String())
 		}
+		f, err := ns.Open(fn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+
 	}
 }
 
@@ -218,46 +314,68 @@ func assertIsDir(t *testing.T, ns NameSpace, paths ...string) {
 			t.Fatal(err)
 		}
 		if !fi.Mode().IsDir() {
-			t.Fatal(fi.Mode().String())
+			t.Fatalf("expected path as directory: %s : %v ", fn, fi.Mode().String())
 		}
 		if _, err := ns.ReadDir(fn); err != nil {
-			t.Fatal(err)
+			t.Fatalf("expected path as directory: %s : %v ", fn, err)
 		}
 	}
 }
 
 func assertIsNotExist(t *testing.T, ns NameSpace, paths ...string) {
+loop:
 	for _, fn := range paths {
 		fi, err := ns.Stat(fn)
 		if err == nil {
-			t.Fatal(fi.Mode().String())
+			t.Fatalf("expected path to not exist: %s : %v ", fn, fi.Mode().String())
 		}
 		if !os.IsNotExist(err) {
-			t.Fatal(err)
+			t.Fatalf("expected path to not exist: %s : %v ", fn, err)
 		}
-	}
+		_, err = ns.Open(fn)
+		if os.IsNotExist(err) {
+			continue loop
+		}
 
+		if _, ok := err.(*os.PathError); ok {
+			continue loop
+		}
+		t.Logf("%T", err)
+		t.Fatal(err)
+	}
 }
 
 func assertWalk(t *testing.T, ns NameSpace, expected string) {
-	var results []string
+	// walkEntry .
+	type walkEntry struct {
+		kind, data string
+	}
+
+	var results []walkEntry
 	addRes := func(kind, data string) {
-		s := fmt.Sprintf("%-4s: %s", kind, data)
-		results = append(results, s)
-
-		if verbose {
-			switch kind {
-			case "dir", "file":
-				fmt.Print("\n")
-			}
-			fmt.Printf("%-6s: %-30s", kind, data)
+		results = append(results, walkEntry{kind, data})
+		// fmt.Printf("%-6s: %-30s", kind, data)
+	}
+	getAssertString := func() string {
+		var strs []string
+		for _, v := range results {
+			s := fmt.Sprintf("%-4s: %s", v.kind, v.data)
+			strs = append(strs, s)
 		}
-
+		return strings.Join(strs, "\n")
+	}
+	getPrintString := func() string {
+		var strs []string
+		for _, v := range results {
+			s := fmt.Sprintf("%-6s: %-30s", v.kind, v.data)
+			strs = append(strs, s)
+		}
+		return strings.Join(strs, "\n")
 	}
 	err := Walk("/", ns, func(p string, info os.FileInfo, err error) error {
 		if err != nil {
-			t.Fatalf("ERROR: %s : %v !!!", p, err)
-			return nil
+			t.Logf("path:%s err:%v (%T)", p, err, err)
+			return fmt.Errorf("ERROR: %s : %v !!!", p, err)
 		}
 		if info.IsDir() {
 			addRes("dir", p)
@@ -275,14 +393,17 @@ func assertWalk(t *testing.T, ns NameSpace, expected string) {
 		addRes("data", string(data))
 		return nil
 	})
+
 	if err != nil {
+		t.Logf("WALKLOG: \n%s ", getPrintString())
 		t.Fatal(err)
 	}
-
-	s := strings.Join(results, "\n")
-	if s != expected {
-		fmt.Printf("\n===========\n\nEXPECTED:\n\n%s\n\nGOT:\n\n%s\n", expected, s)
-		t.Fatal("not equal")
+	{
+		s := getAssertString()
+		if s != expected {
+			fmt.Printf("\n===========\n\nEXPECTED:\n\n%s\n\nGOT:\n\n%s\n", expected, s)
+			t.Fatal("not equal")
+		}
 	}
 
 }

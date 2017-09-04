@@ -18,7 +18,7 @@ type oneFileFileSystem struct {
 }
 
 func (fs oneFileFileSystem) String() string {
-	return "one file"
+	return "onefile(" + fs.src + ":" + fs.dst + ")"
 }
 
 func (fs oneFileFileSystem) Open(path string) (ReadSeekCloser, error) {

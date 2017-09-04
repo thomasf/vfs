@@ -8,14 +8,13 @@ the godoc vfs was nice so I started from that.
 
 changes from godoc version:
 
-- removed some godoc specific code left.
+- removed godoc specific code.
 
-- namespaces merges files inside directories as well as directory trees.
+- namespaces merges files inside directories as well as directories.
 
 - added Walk (modified from filepath.Walk)
 
-- added Filter vfs which wraps another vfs to include/exclude contents
-  (PathFilterFunc w with convinience Include/Exclude shorthands)
+- added Exclude vfs which wraps another vfs to exclude by path prefix.
   
 - added OneFile vfs which mounts a single file with support for renaming it.
 
