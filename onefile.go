@@ -29,6 +29,9 @@ func (fs oneFileFileSystem) Open(path string) (ReadSeekCloser, error) {
 }
 
 func (fs oneFileFileSystem) Lstat(path string) (os.FileInfo, error) {
+	if path == "/" {
+		return dirInfo("/"), nil
+	}
 	if path != pathpkg.Join("/", fs.dst) {
 		return nil, os.ErrNotExist
 	}
@@ -36,11 +39,13 @@ func (fs oneFileFileSystem) Lstat(path string) (os.FileInfo, error) {
 }
 
 func (fs oneFileFileSystem) Stat(path string) (os.FileInfo, error) {
+	if path == "/" {
+		return dirInfo("/"), nil
+	}
 	if path != pathpkg.Join("/", fs.dst) {
 		return nil, os.ErrNotExist
 	}
 	return os.Stat(fs.src)
-
 }
 
 func (fs oneFileFileSystem) ReadDir(path string) ([]os.FileInfo, error) {

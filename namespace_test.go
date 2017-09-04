@@ -28,6 +28,7 @@ func TestFeature(t *testing.T) {
 	ns.Bind("/dogs/subdogs/sub2/sub3", OS(testPath("A/animals/dogs")), "/", BindAfter)
 	ns.Bind("/dogs", OneFile(testPath("C/animals/cats/cats"), "fake-dog"), "/", BindBefore)
 	ns.Bind("/alt/dogs", OS(testPath("A/animals/dogs")), "/", BindAfter)
+	ns.Bind("/new/dogs", OneFile(testPath("C/animals/cats/cats"), "fake-dog"), "/", BindBefore)
 
 	ns.Bind("/all", OS(testPath("A")), "/", BindBefore)
 	ns.Bind("/all", OS(testPath("B")), "/", BindBefore)
@@ -153,7 +154,11 @@ dir : /dogs/subdogs/sub2/sub3
 file: /dogs/subdogs/sub2/sub3/A-dogs
 data: A/animals/dogs/A-dogs
 file: /dogs/subdogs/sub2/sub3/dogs
-data: A/animals/dogs/dogs` {
+data: A/animals/dogs/dogs
+dir : /new
+dir : /new/dogs
+file: /new/dogs/fake-dog
+data: C/animals/cats/cats` {
 		t.Fatal("not equal")
 	}
 
