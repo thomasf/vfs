@@ -4,7 +4,7 @@
 
 // Package mapfs file provides an implementation of the FileSystem
 // interface based on the contents of a map[string]string.
-package mapfs // import "github.com/thomasf/vfs/mapfs"
+package vfs // import "github.com/thomasf/vfs"
 
 import (
 	"io"
@@ -14,13 +14,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/thomasf/vfs"
-)
 
+)
 // New returns a new FileSystem from the provided map.
 // Map keys should be forward slash-separated pathnames
 // and not contain a leading slash.
-func New(m map[string]string) vfs.FileSystem {
+func Map(m map[string]string) FileSystem {
 	return mapFS(m)
 }
 
@@ -35,7 +34,7 @@ func filename(p string) string {
 	return strings.TrimPrefix(p, "/")
 }
 
-func (fs mapFS) Open(p string) (vfs.ReadSeekCloser, error) {
+func (fs mapFS) Open(p string) (ReadSeekCloser, error) {
 	b, ok := fs[filename(p)]
 	if !ok {
 		return nil, os.ErrNotExist
@@ -47,7 +46,7 @@ func fileInfo(name, contents string) os.FileInfo {
 	return mapFI{name: pathpkg.Base(name), size: len(contents)}
 }
 
-func dirInfo(name string) os.FileInfo {
+func mapDirInfo(name string) os.FileInfo {
 	return mapFI{name: pathpkg.Base(name), dir: true}
 }
 
@@ -58,7 +57,7 @@ func (fs mapFS) Lstat(p string) (os.FileInfo, error) {
 	}
 	ents, _ := fs.ReadDir(p)
 	if len(ents) > 0 {
-		return dirInfo(p), nil
+		return mapDirInfo(p), nil
 	}
 	return nil, os.ErrNotExist
 }
@@ -99,7 +98,7 @@ func (fs mapFS) ReadDir(p string) ([]os.FileInfo, error) {
 					if isFile {
 						fi = fileInfo(fn, b)
 					} else {
-						fi = dirInfo(base)
+						fi = mapDirInfo(base)
 					}
 					ents = append(ents, base)
 					fim[base] = fi

@@ -2,28 +2,25 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package vfs_test
+package vfs
 
 import (
 	"testing"
 	"time"
-
-	"github.com/thomasf/vfs"
-	"github.com/thomasf/vfs/mapfs"
 )
 
 func TestNewNameSpace(t *testing.T) {
 
 	// We will mount this filesystem under /fs1
-	mount := mapfs.New(map[string]string{"fs1file": "abcdefgh"})
+	mount := Map(map[string]string{"fs1file": "abcdefgh"})
 
 	// Existing process. This should give error on Stat("/")
-	t1 := vfs.NameSpace{}
-	t1.Bind("/fs1", mount, "/", vfs.BindReplace)
+	t1 := NameSpace{}
+	t1.Bind("/fs1", mount, "/", BindReplace)
 
 	// using NewNameSpace. This should work fine.
-	t2 := vfs.NewNameSpace()
-	t2.Bind("/fs1", mount, "/", vfs.BindReplace)
+	t2 := NewNameSpace()
+	t2.Bind("/fs1", mount, "/", BindReplace)
 
 	testcases := map[string][]bool{
 		"/":            {false, true},
@@ -31,7 +28,7 @@ func TestNewNameSpace(t *testing.T) {
 		"/fs1/fs1file": {true, true},
 	}
 
-	fss := []vfs.FileSystem{t1, t2}
+	fss := []FileSystem{t1, t2}
 
 	for j, fs := range fss {
 		for k, v := range testcases {

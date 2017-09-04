@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package mapfs
+package vfs
 
 import (
 	"io/ioutil"
@@ -12,7 +12,7 @@ import (
 )
 
 func TestOpenRoot(t *testing.T) {
-	fs := New(map[string]string{
+	fs := Map(map[string]string{
 		"foo/bar/three.txt": "a",
 		"foo/bar.txt":       "b",
 		"top.txt":           "c",
@@ -53,7 +53,7 @@ func TestOpenRoot(t *testing.T) {
 }
 
 func TestReaddir(t *testing.T) {
-	fs := New(map[string]string{
+	fs := Map(map[string]string{
 		"foo/bar/three.txt": "333",
 		"foo/bar.txt":       "22",
 		"top.txt":           "top.txt file",
