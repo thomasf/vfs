@@ -296,10 +296,7 @@ var startTime = time.Now()
 // ReadDir implements the FileSystem ReadDir method.  It's where most of the magic is.
 // (The rest is in resolve.)
 //
-// Logically, ReadDir must return the union of all the directories that are named
-// by path.  In order to avoid misinterpreting Go packages, of all the directories
-// that contain Go source code, we only include the files from the first,
-// but we include subdirectories from all.
+// ReadDir returns return the union of all the directories and files.
 //
 // ReadDir must also return directory entries needed to reach mount points.
 // If the name space looks like the example in the type NameSpace comment,
