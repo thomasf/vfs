@@ -11,41 +11,56 @@ import (
 	"os"
 	pathpkg "path"
 	"sort"
-	"strings"
 )
 
-// Map returns a new FileSystem from the provided map. Map keys should be
-// forward slash-separated pathnames and not contain a leading slash. The Map
-// value string contents is returned by Open.
-func Map(m map[string]string) FileSystem {
-	return mapFS(m)
+// FileMap returns a new FileSystem from the provided Map. The Map value
+// specifies the source location of a file. Map keys should be forward
+// slash-separated pathnames and not contain a leading slash.
+func FileMap(m map[string]string) FileSystem {
+	return filemapFS(m)
 }
 
-// mapFS is the map based implementation of FileSystem
-type mapFS map[string]string
+// filemapFS is the map based implementation of FileSystem
+type filemapFS map[string]string
 
-func (fs mapFS) String() string {
+func (fs filemapFS) String() string {
 	return fmt.Sprintf("filemap(%v)", len(fs))
 }
 
-func (fs mapFS) Close() error { return nil }
+func (fs filemapFS) Close() error { return nil }
 
-func filename(p string) string {
-	return strings.TrimPrefix(p, "/")
-}
-
-func (fs mapFS) Open(p string) (ReadSeekCloser, error) {
+func (fs filemapFS) Open(p string) (ReadSeekCloser, error) {
 	b, ok := fs[filename(p)]
 	if !ok {
 		return nil, os.ErrNotExist
 	}
-	return nopCloser{strings.NewReader(b)}, nil
+	f, err := os.Open(b)
+	if err != nil {
+		return nil, err
+	}
+	fi, err := f.Stat()
+	if err != nil {
+		f.Close()
+		return nil, err
+	}
+	if fi.IsDir() {
+		f.Close()
+		return nil, fmt.Errorf("Open: %s is a directory", p)
+	}
+
+	return f, nil
 }
 
-func (fs mapFS) Lstat(p string) (os.FileInfo, error) {
+func (fs filemapFS) Lstat(p string) (os.FileInfo, error) {
 	b, ok := fs[filename(p)]
 	if ok {
-		return mapFileInfo(p, b), nil
+
+		fi, err := os.Lstat(b)
+		if err != nil {
+			return nil, err
+		}
+
+		return renamedFileInfo(fi, b), nil
 	}
 	ents, _ := fs.ReadDir(p)
 	if len(ents) > 0 {
@@ -54,28 +69,15 @@ func (fs mapFS) Lstat(p string) (os.FileInfo, error) {
 	return nil, os.ErrNotExist
 }
 
-func (fs mapFS) Stat(p string) (os.FileInfo, error) {
+func (fs filemapFS) Stat(p string) (os.FileInfo, error) {
 	return fs.Lstat(p)
 }
 
-// slashdir returns path.Dir(p), but special-cases paths not beginning
-// with a slash to be in the root.
-func slashdir(p string) string {
-	d := pathpkg.Dir(p)
-	if d == "." {
-		return "/"
-	}
-	if strings.HasPrefix(p, "/") {
-		return d
-	}
-	return "/" + d
-}
-
-func (fs mapFS) ReadDir(p string) ([]os.FileInfo, error) {
+func (fs filemapFS) ReadDir(p string) ([]os.FileInfo, error) {
 	p = pathpkg.Clean(p)
 	var ents []string
 	fim := make(map[string]os.FileInfo) // base -> fi
-	for fn, b := range fs {
+	for fn, dst := range fs {
 		dir := slashdir(fn)
 		isFile := true
 		var lastBase string
@@ -88,7 +90,12 @@ func (fs mapFS) ReadDir(p string) ([]os.FileInfo, error) {
 				if fim[base] == nil {
 					var fi os.FileInfo
 					if isFile {
-						fi = mapFileInfo(fn, b)
+						var err error
+						fi, err = os.Stat(dst)
+						if err != nil {
+							return nil, err
+						}
+						fi = renamedFileInfo(fi, base)
 					} else {
 						fi = mapDirInfo(base)
 					}

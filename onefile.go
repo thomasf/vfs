@@ -5,67 +5,60 @@ import (
 	pathpkg "path"
 )
 
-func OneFile(srcFile, dstFileName string) FileSystem {
+// OneFile contains a link to a single OS file at the root of the VFS. The
+// first argument is the full path to the local file, the second argument must
+// be a single file name without any directories or leading slash.
+func OneFile(path, newname string) FileSystem {
 	return oneFileFileSystem{
-		src: srcFile,
-		dst: dstFileName,
+		path: path,
+		name: newname,
 	}
 }
 
 type oneFileFileSystem struct {
-	src string
-	dst string
+	path string
+	name string
 }
 
 func (fs oneFileFileSystem) String() string {
-	return "onefile(" + fs.src + ":" + fs.dst + ")"
+	return "onefile(" + fs.path + ":" + fs.name + ")"
 }
 
 func (fs oneFileFileSystem) Open(path string) (ReadSeekCloser, error) {
-	if path != pathpkg.Clean("/"+fs.dst) {
+	if path != pathpkg.Clean("/"+fs.name) {
 		return nil, os.ErrNotExist
 	}
-	return os.Open(fs.src)
+	return os.Open(fs.path)
 }
 
 func (fs oneFileFileSystem) Lstat(path string) (os.FileInfo, error) {
 	if path == "/" {
 		return dirInfo("/"), nil
 	}
-	if path != pathpkg.Clean("/"+fs.dst) {
+	if path != pathpkg.Clean("/"+fs.name) {
 		return nil, os.ErrNotExist
 	}
-	return os.Lstat(fs.src)
+	return os.Lstat(fs.path)
 }
 
 func (fs oneFileFileSystem) Stat(path string) (os.FileInfo, error) {
 	if path == "/" {
 		return dirInfo("/"), nil
 	}
-	if path != pathpkg.Clean("/"+fs.dst) {
+	if path != pathpkg.Clean("/"+fs.name) {
 		return nil, os.ErrNotExist
 	}
-	return os.Stat(fs.src)
+	return os.Stat(fs.path)
 }
 
 func (fs oneFileFileSystem) ReadDir(path string) ([]os.FileInfo, error) {
 	if path == "/" {
-		fi, err := os.Stat(fs.src)
+		fi, err := os.Stat(fs.path)
 		if err != nil {
 			return nil, err
 		}
-		rfi := renamedFileInfo{fi, fs.dst}
+		rfi := renamedFileInfo(fi, fs.name)
 		return []os.FileInfo{rfi}, nil
 	}
 	return nil, os.ErrNotExist
-}
-
-// renamedFile
-type renamedFileInfo struct {
-	os.FileInfo
-	newName string
-}
-
-func (r renamedFileInfo) Name() string {
-	return r.newName
 }

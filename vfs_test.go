@@ -11,7 +11,42 @@ import (
 	"testing"
 )
 
-func TestExcludeDir(t *testing.T) {
+func TestFileMapFS(t *testing.T) {
+	ns := NameSpace{}
+	ns.Bind("/", NewNameSpace(), "/", BindReplace)
+	ns.Bind("/", FileMap(map[string]string{
+		"1/2/3/4/5/6":   "test-fixtures/C/animals/cats/cats",
+		"1/2/3/A/4/5/6": "test-fixtures/C/animals/cats/cats",
+		"1/2/3/B/4/5/6": "test-fixtures/C/animals/cats/C-cats",
+		"2":             "test-fixtures/C/animals/cats/cats",
+	}), "/", BindReplace)
+
+	assertIsNotExist(t, ns,
+		"/1/2/B",
+	)
+	assertWalk(t, ns, `dir : /
+dir : /1
+dir : /1/2
+dir : /1/2/3
+dir : /1/2/3/4
+dir : /1/2/3/4/5
+file: /1/2/3/4/5/6
+data: C/animals/cats/cats
+dir : /1/2/3/A
+dir : /1/2/3/A/4
+dir : /1/2/3/A/4/5
+file: /1/2/3/A/4/5/6
+data: C/animals/cats/cats
+dir : /1/2/3/B
+dir : /1/2/3/B/4
+dir : /1/2/3/B/4/5
+file: /1/2/3/B/4/5/6
+data: C/animals/cats/C-cats
+file: /2
+data: C/animals/cats/cats`)
+}
+
+func TestExclude(t *testing.T) {
 	ns := NameSpace{}
 	ns.Bind("/", NewNameSpace(), "/", BindReplace)
 	ns.Bind("/1", OS(testPath("B")), "/things", BindAfter)
@@ -126,6 +161,8 @@ func TestFprint(t *testing.T) {
 	ns.Bind("/dogs", OS(testPath("A/animals/dogs")), "/", BindAfter)
 	ns.Bind("/dogs", OS(testPath("B/animals/dogs")), "/", BindBefore)
 	ns.Bind("/new/dogs", OneFile(testPath("C/animals/cats/cats"), "fake-dog"), "/", BindBefore)
+	ns.Bind("/fm/dogs", FileMap(map[string]string{"dogs/fake-dog": testPath("C/animals/cats/cats")}), "/", BindBefore)
+	ns.Bind("/mapdogs", Map(map[string]string{"fake-dog": ""}), "/", BindBefore)
 
 	ns.Fprint(&buf)
 	s := buf.String()
@@ -139,6 +176,12 @@ func TestFprint(t *testing.T) {
 	/excl:
 		ns /excl
 		exclude(os(test-fixtures/B)) /things
+	/fm/dogs:
+		filemap(1) /
+		ns /fm/dogs
+	/mapdogs:
+		filemap(1) /
+		ns /mapdogs
 	/new/dogs:
 		onefile(test-fixtures/C/animals/cats/cats:fake-dog) /
 		ns /new/dogs
@@ -146,7 +189,6 @@ func TestFprint(t *testing.T) {
 `
 	if s != expected {
 		fmt.Println(s)
-
 		t.Log("GOT")
 		t.Log(s)
 		t.Log("EXPECTED")
@@ -157,10 +199,7 @@ func TestFprint(t *testing.T) {
 }
 
 func TestComplicated(t *testing.T) {
-	// generateTestFixture()
 	ns := NameSpace{}
-	// ns.Bind("/", OS(testPath(".")), "/", BindReplace)
-	// ns.Bind("/", OS("."), "/", BindReplace)
 	ns.Bind("/", NewNameSpace(), "/", BindReplace)
 	ns.Bind("/dogs", OS(testPath("A/animals/dogs")), "/", BindAfter)
 	ns.Bind("/dogs", OS(testPath("B/animals/dogs")), "/", BindAfter)
@@ -169,7 +208,6 @@ func TestComplicated(t *testing.T) {
 	ns.Bind("/dogs", OneFile(testPath("C/animals/cats/cats"), "fake-dog"), "/", BindBefore)
 	ns.Bind("/alt/dogs", OS(testPath("A/animals/dogs")), "/", BindAfter)
 	ns.Bind("/new/dogs", OneFile(testPath("C/animals/cats/cats"), "fake-dog"), "/", BindBefore)
-
 	ns.Bind("/all", OS(testPath("A")), "/", BindBefore)
 	ns.Bind("/all", OS(testPath("B")), "/", BindBefore)
 	ns.Bind("/all", OS(testPath("C")), "/", BindAfter)
