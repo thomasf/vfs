@@ -11,6 +11,10 @@ func renamedFileInfo(fi os.FileInfo, name string) os.FileInfo {
 	return renamedFI{fi, name}
 }
 
+func modeFileInfo(fi os.FileInfo, mode os.FileMode) os.FileInfo {
+	return modeFI{fi, mode}
+}
+
 func mapFileInfo(name, contents string) os.FileInfo {
 	return mapFI{name: pathpkg.Base(name), size: len(contents)}
 }
@@ -27,6 +31,16 @@ type renamedFI struct {
 
 func (r renamedFI) Name() string {
 	return r.newName
+}
+
+// modeFI wraps a os.FileInfo with a new Mode response.
+type modeFI struct {
+	os.FileInfo
+	m os.FileMode
+}
+
+func (r modeFI) Mode() os.FileMode {
+	return r.m
 }
 
 // mapFI is the map-based implementation of FileInfo.
