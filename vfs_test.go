@@ -55,10 +55,10 @@ func TestModeMap(t *testing.T) {
 			return fmt.Errorf("ERROR: %s : %v !!!", p, err)
 		}
 		if info.IsDir() {
-			fmt.Println("dir", p, info.Mode())
+			// fmt.Println("dir", p, info.Mode())
 			return nil
 		}
-		fmt.Println("file", p)
+		// fmt.Println("file", p)
 		f, err := ns.Open(p)
 		if err != nil {
 			t.Fatal(err)
@@ -67,7 +67,8 @@ func TestModeMap(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		fmt.Println("data", string(data))
+		_ = data
+		// fmt.Println("data", string(data))
 		return nil
 	})
 
@@ -86,6 +87,11 @@ func TestFileMapFS(t *testing.T) {
 	assertIsNotExist(t, ns,
 		"/1/2/B",
 	)
+	assertOSPather(t, ns, map[string]string{
+		"/1/2":           "",
+		"/1/2/3/A/4/5/6": "test-fixtures/C/animals/cats/cats",
+		"2":              "test-fixtures/C/animals/cats/cats",
+	})
 	assertWalk(t, ns, `dir : /
 dir : /1
 dir : /1/2
@@ -155,6 +161,10 @@ func TestExcludeFiles(t *testing.T) {
 		"/things/wood/table/NOTAFILE",
 		"/things/wood/table/B-table",
 	), "/things", BindAfter)
+	assertOSPather(t, ns, map[string]string{
+		"/2/wood/table/table": "test-fixtures/B/things/wood/table/table",
+		"/1/wood":             "test-fixtures/B/things/wood",
+	})
 	assertWalk(t, ns, `dir : /
 dir : /1
 dir : /1/wood
@@ -212,6 +222,11 @@ func TestIntermediateEmtpyDirs(t *testing.T) {
 		"/1/3",
 		"/1/animals/cats/dogs",
 	)
+	assertOSPather(t, ns, map[string]string{
+		"/1/2/3/4/5":   "",
+		"/1/2/3/4/5/6": "",
+	})
+
 }
 
 func TestFprint(t *testing.T) {
@@ -581,6 +596,29 @@ loop:
 		}
 		t.Logf("%T", err)
 		t.Fatal(err)
+	}
+}
+
+func assertOSPather(t *testing.T, ns NameSpace, paths map[string]string) {
+ps:
+	for fn, ospath := range paths {
+		fi, err := ns.Stat(fn)
+		if err != nil {
+			t.Fatalf("expected path to be readable: %s : %v, %v ", fn, fi.Mode().String(), err)
+		}
+		if opr, ok := fi.(OSPather); ok {
+			op := opr.OSPath()
+			if ospath == "" {
+				t.Fatalf("did not expect vpath '%s' to be OSPather: '%s' != '%s'", fn, ospath, op)
+			}
+			if op != ospath {
+				t.Fatalf("expected ospath to be equal: '%s' != '%s'", ospath, op)
+			}
+			continue ps
+		}
+		if ospath != "" {
+			t.Fatalf("expected path to be ospath: %s", fn, ospath)
+		}
 	}
 }
 

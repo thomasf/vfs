@@ -53,13 +53,25 @@ func (root osFS) Open(path string) (ReadSeekCloser, error) {
 }
 
 func (root osFS) Lstat(path string) (os.FileInfo, error) {
-	return os.Lstat(root.resolve(path))
+	p := root.resolve(path)
+	fi, err := os.Lstat(p)
+	return osPathFI{fi, p}, err
 }
 
 func (root osFS) Stat(path string) (os.FileInfo, error) {
-	return os.Stat(root.resolve(path))
+	p := root.resolve(path)
+	fi, err := os.Stat(p)
+	return osPathFI{fi, p}, err
 }
 
 func (root osFS) ReadDir(path string) ([]os.FileInfo, error) {
-	return ioutil.ReadDir(root.resolve(path)) // is sorted
+	p := root.resolve(path)
+	fis, err := ioutil.ReadDir(p) // is sorted
+	if err != nil {
+		return fis, err
+	}
+	for i, v := range fis {
+		fis[i] = osPathFI{v, filepath.Join(v.Name())}
+	}
+	return fis, err
 }

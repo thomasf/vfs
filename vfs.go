@@ -34,6 +34,11 @@ type ReadSeekCloser interface {
 	io.Closer
 }
 
+// OSPather contains the full path to files on vfs FileInfo instances representing an OS file.
+type OSPather interface {
+	OSPath() string
+}
+
 // ReadFile reads the file named by path from fs and returns the contents.
 func ReadFile(fs Opener, path string) ([]byte, error) {
 	rc, err := fs.Open(path)

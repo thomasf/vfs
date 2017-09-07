@@ -38,7 +38,8 @@ func (fs oneFileFileSystem) Lstat(path string) (os.FileInfo, error) {
 	if path != pathpkg.Clean("/"+fs.name) {
 		return nil, os.ErrNotExist
 	}
-	return os.Lstat(fs.path)
+	fi, err := os.Lstat(fs.path)
+	return osPathFI{fi, fs.path}, err
 }
 
 func (fs oneFileFileSystem) Stat(path string) (os.FileInfo, error) {
@@ -48,7 +49,8 @@ func (fs oneFileFileSystem) Stat(path string) (os.FileInfo, error) {
 	if path != pathpkg.Clean("/"+fs.name) {
 		return nil, os.ErrNotExist
 	}
-	return os.Stat(fs.path)
+	fi, err := os.Stat(fs.path)
+	return osPathFI{fi, fs.path}, err
 }
 
 func (fs oneFileFileSystem) ReadDir(path string) ([]os.FileInfo, error) {

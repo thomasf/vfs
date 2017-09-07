@@ -59,8 +59,7 @@ func (fs filemapFS) Lstat(p string) (os.FileInfo, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		return renamedFileInfo(fi, b), nil
+		return osPathFI{renamedFileInfo(fi, b), b}, nil
 	}
 	ents, _ := fs.ReadDir(p)
 	if len(ents) > 0 {

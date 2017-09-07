@@ -23,6 +23,16 @@ func mapDirInfo(name string) os.FileInfo {
 	return mapFI{name: pathpkg.Base(name), dir: true}
 }
 
+/// osPathFI implements the OSPather interface
+type osPathFI struct {
+	os.FileInfo
+	string
+}
+
+func (o osPathFI) OSPath() string {
+	return o.string
+}
+
 // renamedFileInfo wraps a os.FileInfo with a new name.
 type renamedFI struct {
 	os.FileInfo
