@@ -4,12 +4,38 @@ import (
 	"fmt"
 	"os"
 	pathpkg "path"
+	"strings"
+
+	"github.com/pkg/errors"
 )
 
 func Exclude(parent FileSystem, patterns ...string) FileSystem {
 	return filterFileSystem{
 		parent:   parent,
 		patterns: patterns,
+	}
+}
+
+// SafeExlude automatically adds leading slash if it doesnt exist.
+func SafeExclude(parent FileSystemFunc, patterns ...string) FileSystemFunc {
+	return func() (FileSystem, error) {
+		par, err := parent()
+		if err != nil {
+			return nil,err
+		}
+
+		for i, p := range patterns {
+			p = strings.TrimSpace(p)
+			if !strings.HasPrefix(p, "/") {
+				p = "/" + p
+			}
+			if strings.TrimSpace(p) == "/" {
+				return nil, errors.New("emtpy pattern not allowed")
+			}
+			patterns[i] = p
+
+		}
+		return Exclude(par, patterns...), nil
 	}
 }
 

@@ -10,11 +10,25 @@ import (
 	"fmt"
 	"os"
 	pathpkg "path"
+	"strings"
+
+	"github.com/pkg/errors"
 )
 
 // ModeMap wraps a FileSystem and adds custom FileMode return values for Stat calls.
 func ModeMap(fs FileSystem, m map[string]os.FileMode) FileSystem {
 	return mapModeFS{fs, m}
+}
+
+func SafeModeMap(fs FileSystem, m map[string]os.FileMode) FileSystemFunc {
+	return func() (FileSystem, error) {
+		for path, _ := range m {
+			if strings.HasPrefix(path, "/") {
+				return nil, errors.Errorf("mount paths may not contain a leading '/': %s", path)
+			}
+		}
+		return mapModeFS{fs, m}, nil
+	}
 }
 
 type mapModeFS struct {

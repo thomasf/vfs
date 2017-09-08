@@ -10,6 +10,8 @@ import (
 	"os"
 	pathpkg "path"
 	"path/filepath"
+
+	"github.com/pkg/errors"
 )
 
 // OS returns an implementation of FileSystem reading from the
@@ -19,6 +21,19 @@ import (
 // lets code refer to OS(`c:\`), OS(`d:\`) and so on.
 func OS(root string) FileSystem {
 	return osFS(root)
+}
+
+func SafeOS(root string) FileSystemFunc {
+	return func() (FileSystem, error) {
+		fi, err := os.Stat(root)
+		if err != nil {
+			return nil, errors.Wrapf(err, "%s is not a readable path", root)
+		}
+		if !fi.IsDir() {
+			return nil, errors.Errorf("%s is not a directory", root)
+		}
+		return osFS(root), nil
+	}
 }
 
 type osFS string

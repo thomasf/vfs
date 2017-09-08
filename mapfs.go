@@ -21,6 +21,20 @@ func Map(m map[string]string) FileSystem {
 	return mapFS(m)
 }
 
+func SafeMap(m map[string]string) FileSystemFunc {
+	return func() (FileSystem, error) {
+
+		for path, data := range m {
+			if strings.HasPrefix(path, "/") {
+				path = strings.TrimLeft(path, "/")
+			}
+			m[path] = data
+
+		}
+		return mapFS(m), nil
+	}
+}
+
 // mapFS is the map based implementation of FileSystem
 type mapFS map[string]string
 

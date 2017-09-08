@@ -11,6 +11,9 @@ import (
 	"os"
 	pathpkg "path"
 	"sort"
+	"strings"
+
+	"github.com/pkg/errors"
 )
 
 // FileMap returns a new FileSystem from the provided Map. The Map value
@@ -18,6 +21,23 @@ import (
 // slash-separated pathnames and not contain a leading slash.
 func FileMap(m map[string]string) FileSystem {
 	return filemapFS(m)
+}
+
+func SafeFileMap(m map[string]string) FileSystemFunc {
+	return func() (FileSystem, error) {
+		newm := make(map[string]string, len(m))
+		for new, old := range m {
+			new = strings.TrimSpace(new)
+			new = strings.TrimLeft(new, "/")
+			fi, err := os.Stat(old)
+			if err != nil {
+				return nil, errors.Wrapf(err, "%s is not a readable path", old)
+			}
+			_ = fi
+			newm[new] = old
+		}
+		return filemapFS(newm), nil
+	}
 }
 
 // filemapFS is the map based implementation of FileSystem

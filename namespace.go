@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
 // Setting debugNS = true will enable debugging prints about
@@ -198,6 +200,42 @@ func (ns NameSpace) Bind(old string, newfs FileSystem, new string, mode BindMode
 	}
 
 	ns[old] = mtpt
+}
+
+// FileSystemFunc returns a FileSystem or an error if it's not configured
+// correctly.
+type FileSystemFunc func() (FileSystem, error)
+
+// wraper for always safe filesytems
+func safe(fs FileSystem) FileSystemFunc {
+	return func() (FileSystem, error) {
+		return fs, nil
+	}
+}
+
+// Wrapper which returns fs and no error
+func Safe(fs FileSystem) FileSystemFunc {
+	return func() (FileSystem, error) {
+		return fs, nil
+	}
+}
+
+func (ns NameSpace) BindSafe(old string, newfs FileSystemFunc, new string, mode BindMode) error {
+	fs, err := newfs()
+	if err != nil {
+		return errors.Wrapf(err, "can not bind invalid filesystem %s %s %v", old, new, mode)
+	}
+	fi, err := fs.Stat(new)
+	if err != nil {
+		return errors.Wrapf(err, "can read pathh %s %s %v", old, new, mode)
+	}
+	if !fi.IsDir() {
+		return errors.Errorf("can not mount %s on %s, %s is not a directory", old, new, old)
+	}
+	ns.Bind(old, fs, new, mode)
+	// ns.Bind(old string, newfs FileSystemFunc, new string, mode BindMode)
+	// ns.NameSpace.Bind(old string, newfs FileSystem, new string, mode BindMode)
+	return nil
 }
 
 // resolve resolves a path to the list of mountedFS to use for path.

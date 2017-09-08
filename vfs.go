@@ -22,6 +22,12 @@ type FileSystem interface {
 	String() string
 }
 
+// OSPather contains the full path to files on vfs FileInfo instances which
+// maps to an os.File path.
+type OSPather interface {
+	OSPath() string
+}
+
 // Opener is a minimal virtual filesystem that can only open regular files.
 type Opener interface {
 	Open(name string) (ReadSeekCloser, error)
@@ -32,11 +38,6 @@ type ReadSeekCloser interface {
 	io.Reader
 	io.Seeker
 	io.Closer
-}
-
-// OSPather contains the full path to files on vfs FileInfo instances representing an OS file.
-type OSPather interface {
-	OSPath() string
 }
 
 // ReadFile reads the file named by path from fs and returns the contents.

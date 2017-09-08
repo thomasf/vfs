@@ -3,6 +3,8 @@ package vfs
 import (
 	"os"
 	pathpkg "path"
+
+	"github.com/pkg/errors"
 )
 
 // OneFile contains a link to a single OS file at the root of the VFS. The
@@ -12,6 +14,27 @@ func OneFile(path, newname string) FileSystem {
 	return oneFileFileSystem{
 		path: path,
 		name: newname,
+	}
+}
+
+func SafeOneFile(path, newname string) FileSystemFunc {
+	return func() (FileSystem, error) {
+		// todo , what is rules for newname?
+		// if strings.HasPrefix(new, "/") {
+		// 	return nil, errors.Errorf("mount paths may not contain a leading '/': %s", new)
+		// }
+		fi, err := os.Stat(path)
+		if err != nil {
+			return nil, errors.Wrapf(err, "%s is not a readable path", path)
+		}
+		if fi.IsDir() {
+			return nil, errors.Wrapf(err, "%s is a directory, not a file", path)
+		}
+		return oneFileFileSystem{
+			path: path,
+			name: newname,
+		}, nil
+
 	}
 }
 
