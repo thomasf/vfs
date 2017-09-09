@@ -57,14 +57,13 @@ func TestSafeFileMapFS(t *testing.T) {
 		"1/2/3/B/4/5/6": "test-fixtures/C/animals/cats/NO",
 	}))
 	{
-		ns := NewNameSpace()
-		ns.Bind("/", FileMap(map[string]string{
+		ns := FileMap(map[string]string{
 			"1/2/3":   "test-fixtures/C/animals/cats/cats",
 			"1/A/2/3": "test-fixtures/C/animals/cats/cats",
 			"1/B/2/4": "test-fixtures/C/animals/cats/C-cats",
 			"2":       "test-fixtures/C/animals/cats/cats",
 			"/3":      "test-fixtures/C/animals/cats/cats",
-		}), "/", BindReplace)
+		})
 		// only SafeBind fixes bad input
 		assertIsNotExist(t, ns,
 			"/3",

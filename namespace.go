@@ -202,19 +202,8 @@ func (ns NameSpace) Bind(old string, newfs FileSystem, new string, mode BindMode
 	ns[old] = mtpt
 }
 
-// FileSystemFunc returns a FileSystem or an error if it's not configured
-// correctly.
-type FileSystemFunc func() (FileSystem, error)
-
 // wraper for always safe filesytems
 func safe(fs FileSystem) FileSystemFunc {
-	return func() (FileSystem, error) {
-		return fs, nil
-	}
-}
-
-// Wrapper which returns fs and no error
-func Safe(fs FileSystem) FileSystemFunc {
 	return func() (FileSystem, error) {
 		return fs, nil
 	}
@@ -379,7 +368,7 @@ func (ns NameSpace) ReadDir(path string) ([]os.FileInfo, error) {
 		}
 	}
 
-	// Built union.  Add any missing directories needed to reach mount points.
+	//  Add any missing directories needed to reach mount points.
 	for old := range ns {
 		if hasPathPrefix(old, path) && old != path {
 			// Find next element after path in old.

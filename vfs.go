@@ -22,8 +22,33 @@ type FileSystem interface {
 	String() string
 }
 
+// FileSystemFunc returns a FileSystem or an error if it's not configured
+// correctly. Functions that returns FileSystemFuncs should verify that the
+// underlying resources exists and if possible automatically fix bad
+// configurations.
+type FileSystemFunc func() (FileSystem, error)
+
+// Wrapper which returns fs and no error
+func Safe(fs FileSystem) FileSystemFunc {
+	return func() (FileSystem, error) {
+		return fs, nil
+	}
+}
+
+// MustSafe
+func MustSafe(f FileSystemFunc) FileSystem {
+	fs, err := f()
+	if err != nil {
+		panic(err)
+	}
+	return fs
+}
+
 // OSPather contains the full path to files on vfs FileInfo instances which
-// maps to an os.File path.
+// maps to an os.File path. Be careful with using OSPath results for
+// directories when multiple filesystems are mounted to the same path in the
+// namespace since the path returned by OSPath only leads to the first matching
+// vfs.
 type OSPather interface {
 	OSPath() string
 }

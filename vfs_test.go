@@ -8,6 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/errors"
 )
 
 // this file contains helper functions for all the tests
@@ -83,7 +86,7 @@ func safeOrDie(t *testing.T, f FileSystemFunc) FileSystem {
 	return fs
 }
 
-func assertIsRegular(t *testing.T, ns NameSpace, paths ...string) {
+func assertIsRegular(t *testing.T, ns FileSystem, paths ...string) {
 	t.Helper()
 	for _, fn := range paths {
 		fi, err := ns.Stat(fn)
@@ -102,12 +105,12 @@ func assertIsRegular(t *testing.T, ns NameSpace, paths ...string) {
 	}
 }
 
-func assertIsDir(t *testing.T, ns NameSpace, paths ...string) {
+func assertIsDir(t *testing.T, ns FileSystem, paths ...string) {
 	t.Helper()
 	for _, fn := range paths {
 		fi, err := ns.Stat(fn)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatal(errors.Wrap(err, fn))
 		}
 		if !fi.Mode().IsDir() {
 			t.Fatalf("expected path as directory: %s : %v ", fn, fi.Mode().String())
@@ -118,7 +121,7 @@ func assertIsDir(t *testing.T, ns NameSpace, paths ...string) {
 	}
 }
 
-func assertIsNotExist(t *testing.T, ns NameSpace, paths ...string) {
+func assertIsNotExist(t *testing.T, ns FileSystem, paths ...string) {
 	t.Helper()
 loop:
 	for _, fn := range paths {
@@ -142,7 +145,7 @@ loop:
 	}
 }
 
-func assertOSPather(t *testing.T, ns NameSpace, paths map[string]string) {
+func assertOSPather(t *testing.T, ns FileSystem, paths map[string]string) {
 ps:
 	for fn, ospath := range paths {
 		fi, err := ns.Stat(fn)
@@ -160,12 +163,13 @@ ps:
 			continue ps
 		}
 		if ospath != "" {
-			t.Fatalf("expected path to be ospath: %s", fn, ospath)
+			t.Fatalf("expected path to be ospath: %s : %s", fn, ospath)
 		}
 	}
 }
 
-func assertWalk(t *testing.T, ns NameSpace, expected string) {
+func assertWalk(t *testing.T, ns FileSystem, expected string) {
+	t.Helper()
 	// walkEntry .
 	type walkEntry struct {
 		kind, data string
@@ -177,6 +181,7 @@ func assertWalk(t *testing.T, ns NameSpace, expected string) {
 		// fmt.Printf("%-6s: %-30s", kind, data)
 	}
 	getAssertString := func() string {
+		t.Helper()
 		var strs []string
 		for _, v := range results {
 			s := fmt.Sprintf("%-4s: %s", v.kind, v.data)
@@ -185,6 +190,7 @@ func assertWalk(t *testing.T, ns NameSpace, expected string) {
 		return strings.Join(strs, "\n")
 	}
 	getPrintString := func() string {
+		t.Helper()
 		var strs []string
 		for _, v := range results {
 			s := fmt.Sprintf("%-6s: %-30s", v.kind, v.data)
@@ -193,8 +199,10 @@ func assertWalk(t *testing.T, ns NameSpace, expected string) {
 		return strings.Join(strs, "\n")
 	}
 	err := Walk("/", ns, func(p string, info os.FileInfo, err error) error {
+		t.Helper()
 		if err != nil {
 			t.Logf("path:%s err:%v (%T)", p, err, err)
+			spew.Dump(info)
 			return fmt.Errorf("ERROR: %s : %v !!!", p, err)
 		}
 		if info.IsDir() {
@@ -218,7 +226,7 @@ func assertWalk(t *testing.T, ns NameSpace, expected string) {
 		t.Logf("WALKLOG: \n%s ", getPrintString())
 		t.Fatal(err)
 	}
-	{
+	if expected != "" {
 		s := getAssertString()
 		if s != expected {
 			fmt.Printf("\n===========\n\nEXPECTED:\n\n%s\n\nGOT:\n\n%s\n", expected, s)

@@ -55,13 +55,21 @@ func TestNewNameSpace(t *testing.T) {
 }
 
 func TestIntermediateEmtpyDirs(t *testing.T) {
-	ns := NameSpace{}
-	ns.Bind("/", NewNameSpace(), "/", BindReplace)
-	ns.Bind("/1/2/3/4/5/6", OneFile(testPath("C/animals/cats/cats"), "fake-dog1"), "/", BindBefore)
-	ns.Bind("/1/2/3/4/5/6", OneFile(testPath("C/animals/cats/cats"), "fake-dog2"), "/", BindBefore)
-	ns.Bind("/1/2/3/A/4/5/6", OneFile(testPath("C/animals/cats/cats"), "fake-dog3"), "/", BindBefore)
-	ns.Bind("/1/2/3/A/4/5/6", OneFile(testPath("C/animals/cats/cats"), "fake-dog4"), "/", BindBefore)
-	ns.Bind("/1/2/3/B/4/5/6", OneFile(testPath("C/animals/cats/cats"), "fake-dog5"), "/", BindBefore)
+	var nof int
+	of := func() FileSystem {
+		nof++
+		return OneFile(
+			testPath("C/animals/cats/cats"),
+			fmt.Sprintf("fake-dog%v", nof))
+	}
+
+	ns := NewNameSpace()
+	ns.Bind("/1/2/3/4/5/6", of(), "/", BindBefore)
+	ns.Bind("/1/2/3/4/5/6", of(), "/", BindBefore)
+	ns.Bind("/1/2/3/A/4/5/6", of(), "/", BindBefore)
+	ns.Bind("/1/2/3/A/4/5/6", of(), "/", BindBefore)
+	ns.Bind("/1/2/3/B/4/5/6", of(), "/", BindBefore)
+	ns.Bind("/2", OS(testPath("C/animals/")), "/cats", BindBefore)
 	ns.Bind("/1", OS(testPath("C")), "/", BindAfter)
 	assertIsDir(t, ns,
 		"/1/2",
@@ -84,7 +92,7 @@ func TestIntermediateEmtpyDirs(t *testing.T) {
 	)
 	assertIsNotExist(t, ns,
 		"/1/2/3/4/5/7",
-		"/2",
+		"/3",
 		"/1/3",
 		"/1/animals/cats/dogs",
 	)
@@ -92,16 +100,17 @@ func TestIntermediateEmtpyDirs(t *testing.T) {
 		"/1/2/3/4/5":   "",
 		"/1/2/3/4/5/6": "",
 	})
+	assertWalk(t, ns, ``)
 }
-func TestSafeBind(t *testing.T) {
+
+func TestBindSafe(t *testing.T) {
 	m := map[string]string{
 		"1/6":   "test-fixtures/C/animals/cats/cats",
 		"1/A/6": "test-fixtures/C/animals/cats/cats",
 		"1/B/6": "test-fixtures/C/animals/cats/C-cats",
-		"2":             "test-fixtures/C/animals/cats/cats",
+		"2":     "test-fixtures/C/animals/cats/cats",
 	}
-	// ensure that the filesytem itself is safe
-	_ = safeOrDie(t, SafeFileMap(m))
+	MustSafe(SafeFileMap(m))
 
 	const (
 		nx = "file does not exist"

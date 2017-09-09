@@ -13,7 +13,7 @@ import (
 // order, which makes the output deterministic but means that for very
 // large directories Walk can be inefficient.
 // Walk does not follow symbolic links.
-func Walk(root string, ns NameSpace, walkFn filepath.WalkFunc) error {
+func Walk(root string, ns FileSystem, walkFn filepath.WalkFunc) error {
 	info, err := ns.Lstat(root)
 	if err != nil {
 		err = walkFn(root, nil, err)
@@ -27,7 +27,7 @@ func Walk(root string, ns NameSpace, walkFn filepath.WalkFunc) error {
 }
 
 // walk recursively descends path, calling w.
-func walk(ns NameSpace, path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
+func walk(ns FileSystem, path string, info os.FileInfo, walkFn filepath.WalkFunc) error {
 	err := walkFn(path, info, nil)
 	if err != nil {
 		if info.IsDir() && err == filepath.SkipDir {
@@ -44,7 +44,6 @@ func walk(ns NameSpace, path string, info os.FileInfo, walkFn filepath.WalkFunc)
 	if err != nil {
 		return walkFn(path, info, err)
 	}
-
 	for _, name := range names {
 		filename := pathpkg.Join(path, name)
 		fileInfo, err := ns.Lstat(filename)
@@ -66,8 +65,8 @@ func walk(ns NameSpace, path string, info os.FileInfo, walkFn filepath.WalkFunc)
 
 // readDirNames reads the directory named by dirname and returns
 // a sorted list of directory entries.
-func readDirNames(ns NameSpace, dirname string) ([]string, error) {
-	
+func readDirNames(ns FileSystem, dirname string) ([]string, error) {
+
 	dir, err := ns.ReadDir(dirname)
 	if err != nil {
 		return nil, err
